@@ -1,0 +1,1 @@
+"""Serenity response views for different consumers."""

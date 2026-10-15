@@ -1,0 +1,534 @@
+{
+  "mode": "full",
+  "knowledge": {
+    "repository": "/home/surisettyt/projects/conseek-knowledge-fabric/.conseek/repos/contextos-doc-translator",
+    "files": [
+      "backend/__init__.py",
+      "backend/anonymize.py",
+      "backend/anonymize_dict.py",
+      "backend/docx_pipeline.py",
+      "backend/fonts.py",
+      "backend/frontier_translate.py",
+      "backend/glossary_api.py",
+      "backend/glossary_loader.py",
+      "backend/glossary_lock.py",
+      "backend/job_control.py",
+      "backend/job_options.py",
+      "backend/job_progress.py",
+      "backend/job_scheduler.py",
+      "backend/load_env.py",
+      "backend/main.py",
+      "backend/ocr_env.py",
+      "backend/ocr_models.py",
+      "backend/ollama_translate.py",
+      "backend/pipeline.py",
+      "backend/system_capacity.py",
+      "backend/test_docx_watermark.py",
+      "backend/test_job_enhancements.py",
+      "backend/test_xlsx_pipeline.py",
+      "backend/translate_dispatch.py",
+      "backend/ui_chrome.py",
+      "backend/xlsx_pipeline.py",
+      "frontend/src/App.jsx",
+      "frontend/src/GlossaryTab.jsx",
+      "frontend/src/JobFlow.jsx",
+      "frontend/src/jobParts.jsx",
+      "frontend/src/main.jsx",
+      "frontend/vite.config.js"
+    ],
+    "symbols": [
+      {
+        "id": "backend/__init__.py::module",
+        "name": "__init__",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/__init__.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/__init__.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/anonymize.py::module",
+        "name": "anonymize",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/anonymize.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/anonymize.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/anonymize_dict.py::module",
+        "name": "anonymize_dict",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/anonymize_dict.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/anonymize_dict.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/docx_pipeline.py::module",
+        "name": "docx_pipeline",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/docx_pipeline.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/docx_pipeline.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/fonts.py::module",
+        "name": "fonts",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/fonts.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/fonts.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/frontier_translate.py::module",
+        "name": "frontier_translate",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/frontier_translate.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/frontier_translate.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/glossary_api.py::module",
+        "name": "glossary_api",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/glossary_api.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/glossary_api.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/glossary_loader.py::module",
+        "name": "glossary_loader",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/glossary_loader.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/glossary_loader.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/glossary_lock.py::module",
+        "name": "glossary_lock",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/glossary_lock.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/glossary_lock.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/job_control.py::module",
+        "name": "job_control",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/job_control.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/job_control.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/job_options.py::module",
+        "name": "job_options",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/job_options.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/job_options.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/job_progress.py::module",
+        "name": "job_progress",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/job_progress.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/job_progress.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/job_scheduler.py::module",
+        "name": "job_scheduler",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/job_scheduler.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/job_scheduler.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/load_env.py::module",
+        "name": "load_env",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/load_env.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/load_env.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/main.py::module",
+        "name": "main",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/main.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/main.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/ocr_env.py::module",
+        "name": "ocr_env",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/ocr_env.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/ocr_env.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/ocr_models.py::module",
+        "name": "ocr_models",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/ocr_models.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/ocr_models.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/ollama_translate.py::module",
+        "name": "ollama_translate",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/ollama_translate.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/ollama_translate.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/pipeline.py::module",
+        "name": "pipeline",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/pipeline.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/pipeline.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/system_capacity.py::module",
+        "name": "system_capacity",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/system_capacity.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/system_capacity.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/test_docx_watermark.py::module",
+        "name": "test_docx_watermark",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/test_docx_watermark.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/test_docx_watermark.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/test_job_enhancements.py::module",
+        "name": "test_job_enhancements",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/test_job_enhancements.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/test_job_enhancements.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/test_xlsx_pipeline.py::module",
+        "name": "test_xlsx_pipeline",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/test_xlsx_pipeline.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/test_xlsx_pipeline.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/translate_dispatch.py::module",
+        "name": "translate_dispatch",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/translate_dispatch.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/translate_dispatch.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/ui_chrome.py::module",
+        "name": "ui_chrome",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/ui_chrome.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/ui_chrome.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "backend/xlsx_pipeline.py::module",
+        "name": "xlsx_pipeline",
+        "kind": "module",
+        "language": "py",
+        "location": {
+          "path": "backend/xlsx_pipeline.py",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "backend/xlsx_pipeline.py",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "frontend/src/App.jsx::module",
+        "name": "App",
+        "kind": "module",
+        "language": "jsx",
+        "location": {
+          "path": "frontend/src/App.jsx",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "frontend/src/App.jsx",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "frontend/src/GlossaryTab.jsx::module",
+        "name": "GlossaryTab",
+        "kind": "module",
+        "language": "jsx",
+        "location": {
+          "path": "frontend/src/GlossaryTab.jsx",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "frontend/src/GlossaryTab.jsx",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "frontend/src/JobFlow.jsx::module",
+        "name": "JobFlow",
+        "kind": "module",
+        "language": "jsx",
+        "location": {
+          "path": "frontend/src/JobFlow.jsx",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "frontend/src/JobFlow.jsx",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "frontend/src/jobParts.jsx::module",
+        "name": "jobParts",
+        "kind": "module",
+        "language": "jsx",
+        "location": {
+          "path": "frontend/src/jobParts.jsx",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "frontend/src/jobParts.jsx",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "frontend/src/main.jsx::module",
+        "name": "main",
+        "kind": "module",
+        "language": "jsx",
+        "location": {
+          "path": "frontend/src/main.jsx",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "frontend/src/main.jsx",
+        "source": "tree-sitter"
+      },
+      {
+        "id": "frontend/vite.config.js::module",
+        "name": "vite.config",
+        "kind": "module",
+        "language": "js",
+        "location": {
+          "path": "frontend/vite.config.js",
+          "line": 1,
+          "column": 0,
+          "end_line": 1,
+          "end_column": 0
+        },
+        "evidence": "frontend/vite.config.js",
+        "source": "tree-sitter"
+      }
+    ],
+    "relationships": [],
+    "diagnostics": [
+      "OK: build manifest Dockerfile is valid",
+      "OK: build manifest azure-pipelines.yml is valid",
+      "OK: build manifest deploy/docker-compose.yml is valid",
+      "OK: build manifest docker-compose.yml is valid",
+      "OK: build manifest frontend/package-lock.json is valid",
+      "OK: build manifest frontend/package.json is valid",
+      "SKIPPED: osv-scanner not installed; dependency vulnerabilities not checked",
+      "SKIPPED: semgrep not installed; source security rules not checked",
+      "SKIPPED: clamscan not installed; malware signatures not checked"
+    ]
+  }
+}

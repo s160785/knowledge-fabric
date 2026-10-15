@@ -1,0 +1,31 @@
+rules:
+  - id: python-constant-true-loop
+    languages: [python]
+    message: Constant-true loop; review whether all paths terminate.
+    severity: WARNING
+    pattern: "while True: ..."
+  - id: javascript-constant-true-loop
+    languages: [javascript, typescript]
+    message: Constant-true loop; review whether all paths terminate.
+    severity: WARNING
+    pattern: while (true) { ... }
+  - id: javascript-empty-condition-loop
+    languages: [javascript, typescript]
+    message: Loop with an omitted condition; review whether all paths terminate.
+    severity: WARNING
+    pattern: for (;;) { ... }
+  - id: java-constant-true-loop
+    languages: [java]
+    message: Constant-true loop; review whether all paths terminate.
+    severity: WARNING
+    pattern: while (true) { ... }
+  - id: go-empty-condition-loop
+    languages: [go]
+    message: Loop with an omitted condition; review whether all paths terminate.
+    severity: WARNING
+    pattern: for { ... }
+  - id: rust-loop-expression
+    languages: [rust]
+    message: Unconditional loop; review whether all paths terminate.
+    severity: WARNING
+    pattern: loop { ... }

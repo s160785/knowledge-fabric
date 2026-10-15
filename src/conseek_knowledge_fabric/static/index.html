@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Code Knowledge Graph</title>
+  <style>
+    :root{color-scheme:light;--ink:#202b28;--muted:#64716b;--paper:#f1f4ef;--panel:#fff;--line:#d8e0d8;--green:#176a51;--green-dark:#10513e;--green-soft:#e5f0e8;--orange:#b85d2b;--shadow:0 18px 50px #18352812}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+    header{height:62px;padding:0 26px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:11px;font-weight:700}.glyph{width:30px;height:30px;border-radius:7px;background:var(--green);color:#fff;display:grid;place-items:center;font:700 12px ui-monospace,monospace}.status{color:var(--muted);font-size:12px}.status:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#77a38b;margin-right:8px}
+    main{max-width:1100px;margin:0 auto;padding:34px 22px 60px}.intro{display:flex;justify-content:space-between;align-items:end;margin-bottom:22px}.eyebrow{color:var(--green);font:700 11px ui-monospace,monospace;text-transform:uppercase;letter-spacing:.08em}.intro h1{font:600 28px/1.15 Georgia,"Times New Roman",serif;margin:8px 0 5px;letter-spacing:0}.intro p{margin:0;color:var(--muted);font-size:13px}.pipeline{display:flex;align-items:center;gap:8px;color:var(--muted);font:11px ui-monospace,monospace}.pipeline span{padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:#fff}.pipeline b{font-weight:400;color:#94a19a}
+    .workspace{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(290px,.85fr);gap:16px;align-items:start}.panel{background:var(--panel);border:1px solid var(--line);border-radius:7px;box-shadow:var(--shadow)}.panel-head{padding:16px 18px 13px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.panel-head h2{margin:0;font-size:13px;font-weight:700}.panel-head small{color:var(--muted);font-size:11px}.form-body{padding:18px}.field{margin-bottom:15px}.field label{display:block;margin-bottom:6px;font-size:12px;font-weight:650}.field input,.field select{width:100%;height:39px;padding:0 11px;border:1px solid #cbd6ce;border-radius:4px;background:#fff;color:var(--ink);font:13px ui-sans-serif,system-ui,sans-serif;outline:none}.field input:focus,.field select:focus{border-color:var(--green);box-shadow:0 0 0 3px #176a5115}.field input::placeholder{color:#99a39d}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hint{margin-top:5px;color:var(--muted);font-size:11px}.actions{display:flex;align-items:center;gap:12px;padding-top:3px}.primary,.open-view{height:39px;padding:0 14px;border:0;border-radius:4px;background:var(--green);color:#fff;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.primary:hover,.open-view:hover{background:var(--green-dark)}.primary:disabled{opacity:.6;cursor:wait}.spinner{display:none;width:14px;height:14px;border:2px solid #ffffff70;border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:7px}.primary.busy .spinner{display:inline-block}@keyframes spin{to{transform:rotate(360deg)}}
+    .result{min-height:245px;padding:18px}.empty{display:grid;place-items:center;text-align:center;min-height:205px;color:var(--muted);font-size:12px}.empty-mark{margin:0 auto 12px;width:42px;height:42px;border:1px solid var(--line);border-radius:50%;display:grid;place-items:center;color:var(--green);font:16px ui-monospace,monospace}.result.ready{min-height:245px}.counts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:15px}.count{padding:10px;background:#f4f7f3;border:1px solid #e5ebe5;border-radius:5px}.count strong{display:block;font-size:18px;font-weight:650}.count span{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}.view-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:15px}.view-row select{min-width:0;height:38px;padding:0 10px;border:1px solid #cbd6ce;border-radius:4px;background:#fff;font-size:12px}.open-view{white-space:nowrap}.diagnostics{border-top:1px solid var(--line);padding-top:12px}.diagnostics h3{margin:0 0 7px;font-size:11px}.diagnostics ul{list-style:none;margin:0;padding:0;max-height:135px;overflow:auto}.diagnostics li{padding:4px 0;color:var(--muted);font-size:11px;border-bottom:1px solid #eff2ef}.error{padding:12px;border:1px solid #efd1bf;background:#fff5ee;border-radius:4px;color:#8e421e;font-size:12px;overflow-wrap:anywhere}.security-note{margin-top:12px;padding:11px 12px;border-left:3px solid #d8aa68;background:#faf7ef;color:#6e624c;font-size:11px}.footer{margin-top:17px;color:var(--muted);font-size:11px}
+    /* Chat styles */
+    .chat-panel{display:flex;flex-direction:column;height:100%;min-height:400px}.chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}.chat-message{display:flex;flex-direction:column;gap:4px;max-width:85%}.chat-message.user{align-self:flex-end}.chat-message.assistant{align-self:flex-start}.chat-bubble{padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.5}.chat-message.user .chat-bubble{background:var(--green);color:#fff;border-bottom-right-radius:4px}.chat-message.assistant .chat-bubble{background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px}.chat-meta{font-size:11px;color:var(--muted);margin-top:2px}.chat-message.user .chat-meta{text-align:right}.chat-input-area{padding:16px;border-top:1px solid var(--line);display:flex;gap:8px}.chat-input-area textarea{flex:1;min-height:44px;max-height:120px;padding:10px 12px;border:1px solid #cbd6ce;border-radius:8px;background:#fff;color:var(--ink);font:13px ui-sans-serif,system-ui,sans-serif;outline:none;resize:vertical}.chat-input-area textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px #176a5115}.chat-input-area button{height:44px;padding:0 16px;border:0;border-radius:8px;background:var(--green);color:#fff;font-size:12px;font-weight:700;cursor:pointer;align-self:flex-end}.chat-input-area button:hover{background:var(--green-dark)}.chat-input-area button:disabled{opacity:.6;cursor:wait}.chat-suggestions{display:flex;flex-wrap:wrap;gap:8px;padding:0 16px 16px}.suggestion-chip{padding:6px 12px;border:1px solid var(--line);border-radius:20px;background:#fff;color:var(--ink);font-size:12px;cursor:pointer;transition:all .15s}.suggestion-chip:hover{background:var(--green-soft);border-color:var(--green);color:var(--green)}.evidence-toggle{font-size:11px;color:var(--muted);cursor:pointer;margin-top:4px;display:inline-flex;align-items:center;gap:4px}.evidence-toggle:hover{color:var(--green)}.evidence-panel{margin-top:8px;padding:10px;background:#f4f7f3;border:1px solid #e5ebe5;border-radius:4px;font-size:11px;max-height:200px;overflow:auto}.evidence-item{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #e5ebe5}.evidence-item:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}.evidence-key{font-weight:600;color:var(--ink)}.evidence-value{color:var(--muted);font-family:ui-monospace,monospace;word-break:break-all}
+    @media(max-width:760px){header{padding:0 15px}.status{font-size:0}.status:before{font-size:initial}main{padding:25px 14px}.intro{display:block}.pipeline{margin-top:14px;flex-wrap:wrap}.workspace{grid-template-columns:1fr}.row{grid-template-columns:1fr}.form-body{padding:15px}.panel-head{padding-left:15px;padding-right:15px}.result{min-height:180px}.chat-panel{min-height:350px}}
+  </style>
+</head>
+<body>
+  <header><div class="brand"><span class="glyph">KF</span><span>Code Knowledge Graph</span></div><div class="status">Local workspace</div></header>
+  <main>
+    <section class="intro"><div><div class="eyebrow">Repository ingestion</div><h1>Build a navigable code graph</h1><p>Extract source structure and persist it to your Neo4j database.</p></div><div class="pipeline"><span>Repository</span><b>→</b><span>Tree-sitter</span><b>→</b><span>Neo4j</span></div></section>
+    <div class="workspace">
+      <section class="panel">
+        <div class="panel-head"><h2>Connection and source</h2><small>Credentials are used for this request only</small></div>
+        <form id="build-form" class="form-body">
+          <div class="field"><label for="repository">Repository path or Git URL</label><input id="repository" name="repository" required placeholder="https://github.com/owner/repo.git or ./repo"></div>
+          <div class="field"><label for="branch">Branch name <span class="hint">(optional)</span></label><input id="branch" name="branch" maxlength="255" placeholder="main or feature/my-change"><div class="hint">For local repositories, this safely switches the current checkout; uncommitted conflicting changes are not discarded.</div></div>
+          <div class="row"><div class="field"><label for="bolt">Neo4j Bolt URI</label><input id="bolt" name="neo4j_uri" value="bolt://localhost:7687" required></div><div class="field"><label for="database">Database</label><input id="database" name="neo4j_database" placeholder="neo4j"></div></div>
+          <div class="row"><div class="field"><label for="username">Username</label><input id="username" name="neo4j_username" value="neo4j" autocomplete="username" required></div><div class="field"><label for="password">Password</label><input id="password" name="neo4j_password" type="password" autocomplete="current-password" required></div></div>
+          <div class="field"><label for="browser">Neo4j Browser URL</label><input id="browser" name="neo4j_browser_url" value="http://localhost:7474/browser/" required><div class="hint">Use the Browser HTTP URL. Bolt and Browser can use different hosts or ports.</div></div>
+          <div class="actions"><button class="primary" id="build-button" type="submit"><span class="spinner"></span><span class="button-label">Build graph</span></button><span class="hint" id="progress" aria-live="polite"></span></div>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Graph view</h2><small id="result-caption">Waiting for a graph</small></div>
+        <div id="result" class="result"><div class="empty"><div><div class="empty-mark">◎</div>Enter a repository and Neo4j connection to construct its graph.</div></div></div>
+      </section>
+    </div>
+    <div class="workspace">
+      <section class="panel">
+        <div class="panel-head"><h2>BA Agent Chat</h2><small>Ask questions about your indexed repository</small></div>
+        <div class="chat-panel">
+          <div id="chat-messages" class="chat-messages">
+            <div class="chat-message assistant">
+              <div class="chat-bubble">Hello! I'm the BA Agent. Ask me questions about your repository like "What are the entry points?", "What files are in the repo?", "What are the main dependencies?", or "Who calls function X?".</div>
+              <div class="chat-meta">BA Agent</div>
+            </div>
+          </div>
+          <div class="chat-suggestions" id="chat-suggestions">
+            <button class="suggestion-chip" data-question="What are the entry points?">Entry points</button>
+            <button class="suggestion-chip" data-question="What files are in the repository?">Files</button>
+            <button class="suggestion-chip" data-question="What are the main dependencies?">Dependencies</button>
+            <button class="suggestion-chip" data-question="Show me the call graph">Call graph</button>
+          </div>
+          <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="Ask a question about your repository..." rows="1"></textarea>
+            <button id="chat-send" type="button">Send</button>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div class="security-note">Repository scanning and extraction run locally in this application. Neo4j credentials are not saved or returned in the response.</div>
+    <div class="footer">Neo4j Browser opens in a new tab with a query scoped to the repository just indexed.</div>
+  </main>
+  <script>
+    const form=document.querySelector('#build-form'),button=document.querySelector('#build-button'),progress=document.querySelector('#progress'),result=document.querySelector('#result'),caption=document.querySelector('#result-caption');let browserUrls=null;
+    form.addEventListener('submit',async event=>{event.preventDefault();button.disabled=true;button.classList.add('busy');button.querySelector('.button-label').textContent='Building…';progress.textContent='Checking branch, scanning, parsing and writing to Neo4j';caption.textContent='Working';result.classList.remove('ready');result.innerHTML='<div class="empty"><div><div class="empty-mark">···</div>Building repository graph. Large repositories may take a few minutes.</div></div>';browserUrls=null;try{const values=Object.fromEntries(new FormData(form).entries());if(!values.neo4j_database)delete values.neo4j_database;if(!values.branch.trim())delete values.branch;else values.branch=values.branch.trim();const response=await fetch('/api/build',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(values)});const payload=await response.json();if(!response.ok)throw new Error(payload.detail||'Graph build failed');browserUrls=payload.browser_urls;renderResult(payload)}catch(error){caption.textContent='Build failed';result.innerHTML='';const message=document.createElement('div');message.className='error';message.textContent=error.message;result.append(message)}finally{document.querySelector('#password').value='';button.disabled=false;button.classList.remove('busy');button.querySelector('.button-label').textContent='Build graph';progress.textContent=''}});
+    function renderResult(payload){result.innerHTML='';result.classList.add('ready');const counts=document.createElement('div');counts.className='counts';for(const [label,value] of [['Files',payload.counts.files],['Symbols',payload.counts.symbols],['Relationships',payload.counts.relationships]]){const cell=document.createElement('div');cell.className='count';const strong=document.createElement('strong');strong.textContent=Number(value).toLocaleString();const span=document.createElement('span');span.textContent=label;cell.append(strong,span);counts.append(cell)}const controls=document.createElement('div');controls.className='view-row';const select=document.createElement('select');select.setAttribute('aria-label','Graph view');for(const [value,label] of [['overview','Repository overview'],['files','Files'],['symbols','Symbols'],['relationships','Relationships']]){const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option)}const link=document.createElement('a');link.className='open-view';link.textContent='Open in Neo4j';link.href=browserUrls.overview;link.target='_blank';link.rel='noopener noreferrer';select.addEventListener('change',()=>{link.href=browserUrls[select.value];window.open(link.href,'_blank','noopener,noreferrer')});controls.append(select,link);result.append(counts,controls);const diagnostics=document.createElement('div');diagnostics.className='diagnostics';const heading=document.createElement('h3');heading.textContent=`Repository checks (${payload.diagnostics.length})`;const list=document.createElement('ul');for(const item of payload.diagnostics){const line=document.createElement('li');line.textContent=item;list.append(line)}diagnostics.append(heading,list);result.append(diagnostics);caption.textContent=payload.repository}
+
+    // BA Agent Chat
+    const chatMessages=document.querySelector('#chat-messages');
+    const chatInput=document.querySelector('#chat-input');
+    const chatSend=document.querySelector('#chat-send');
+    const chatSuggestions=document.querySelector('#chat-suggestions');
+    const buildForm=document.querySelector('#build-form');
+
+    function getConnectionConfig(){
+      const formData=new FormData(buildForm);
+      const config={};
+      for(const [key,value] of formData.entries()){
+        if(key==='neo4j_password') continue;
+        if(key==='neo4j_database' && !value) continue;
+        if(key==='branch' && !value.trim()) continue;
+        if(key==='branch') config[key]=value.trim();
+        else config[key]=value;
+      }
+      config.neo4j_password=document.querySelector('#password').value;
+      return config;
+    }
+
+    function addMessage(role, content, evidence=null){
+      const wrapper=document.createElement('div');
+      wrapper.className=`chat-message ${role}`;
+      const bubble=document.createElement('div');
+      bubble.className='chat-bubble';
+      bubble.textContent=content;
+      const meta=document.createElement('div');
+      meta.className='chat-meta';
+      meta.textContent=role==='user' ? 'You' : 'BA Agent';
+      wrapper.append(bubble, meta);
+      if(evidence && evidence.length > 0){
+        const toggle=document.createElement('div');
+        toggle.className='evidence-toggle';
+        toggle.innerHTML='<span>▸</span> Show evidence ('+evidence.length+' items)';
+        const panel=document.createElement('div');
+        panel.className='evidence-panel';
+        panel.style.display='none';
+        evidence.forEach((item, idx)=>{
+          const itemDiv=document.createElement('div');
+          itemDiv.className='evidence-item';
+          for(const [k,v] of Object.entries(item)){
+            const keyDiv=document.createElement('div');
+            keyDiv.className='evidence-key';
+            keyDiv.textContent=k;
+            const valDiv=document.createElement('div');
+            valDiv.className='evidence-value';
+            valDiv.textContent=JSON.stringify(v);
+            itemDiv.append(keyDiv, valDiv);
+          }
+          panel.append(itemDiv);
+        });
+        toggle.addEventListener('click',()=>{
+          const isOpen=panel.style.display!=='none';
+          panel.style.display=isOpen ? 'none' : 'block';
+          toggle.querySelector('span').textContent=isOpen ? '▸' : '▾';
+        });
+        wrapper.append(toggle, panel);
+      }
+      chatMessages.append(wrapper);
+      chatMessages.scrollTop=chatMessages.scrollHeight;
+    }
+
+    async function sendQuestion(question){
+      const config=getConnectionConfig();
+      if(!config.neo4j_password){
+        addMessage('assistant', 'Please enter your Neo4j password in the Connection panel first.');
+        return;
+      }
+      chatInput.value='';
+      chatInput.style.height='auto';
+      chatSend.disabled=true;
+      addMessage('user', question);
+      const typingDiv=document.createElement('div');
+      typingDiv.className='chat-message assistant';
+      typingDiv.innerHTML='<div class="chat-bubble"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid #176a5170;border-top-color:#176a51;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:7px"></span>Thinking…</div><div class="chat-meta">BA Agent</div>';
+      chatMessages.append(typingDiv);
+      chatMessages.scrollTop=chatMessages.scrollHeight;
+      try{
+        const response=await fetch('/api/ba-chat',{
+          method:'POST',
+          headers:{'content-type':'application/json'},
+          body:JSON.stringify({question, ...config})
+        });
+        const payload=await response.json();
+        typingDiv.remove();
+        if(!response.ok) throw new Error(payload.detail||'Chat request failed');
+        addMessage('assistant', payload.answer, payload.evidence);
+      }catch(error){
+        typingDiv.remove();
+        addMessage('assistant', 'Error: '+error.message);
+      }finally{
+        chatSend.disabled=false;
+      }
+    }
+
+    chatSend.addEventListener('click',()=>{
+      const question=chatInput.value.trim();
+      if(question) sendQuestion(question);
+    });
+
+    chatInput.addEventListener('keydown',event=>{
+      if(event.key==='Enter' && !event.shiftKey){
+        event.preventDefault();
+        const question=chatInput.value.trim();
+        if(question) sendQuestion(question);
+      }
+    });
+
+    chatInput.addEventListener('input',()=>{
+      chatInput.style.height='auto';
+      chatInput.style.height=Math.min(chatInput.scrollHeight, 120)+'px';
+    });
+
+    chatSuggestions.addEventListener('click',event=>{
+      const chip=event.target.closest('.suggestion-chip');
+      if(chip) sendQuestion(chip.dataset.question);
+    });
+  </script>
+</body>
+</html>
