@@ -23,6 +23,7 @@ class Symbol:
 	evidence: str
 	source: str = "tree-sitter"
 	symbol_summary: str | None = None
+	symbol_summary_embedding: list[float] | None = None
 
 
 @dataclass(frozen=True)
@@ -34,6 +35,7 @@ class Relationship:
 	evidence: str
 	source_index: str = "tree-sitter"
 	relationship_summary: str | None = None
+	relationship_summary_embedding: list[float] | None = None
 
 
 @dataclass

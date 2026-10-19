@@ -33,6 +33,8 @@ def _groups_by_file(
 			"column": symbol.location.column,
 			"end_line": symbol.location.end_line,
 			"end_column": symbol.location.end_column,
+			"symbol_summary": symbol.symbol_summary,
+			"symbol_summary_embedding": symbol.symbol_summary_embedding,
 		})
 	relationships: dict[str, list[dict[str, Any]]] = defaultdict(list)
 	for relationship in graph.relationships:
@@ -52,6 +54,8 @@ def _groups_by_file(
 			"column": relationship.location.column,
 			"end_line": relationship.location.end_line,
 			"end_column": relationship.location.end_column,
+			"relationship_summary": relationship.relationship_summary,
+			"relationship_summary_embedding": relationship.relationship_summary_embedding,
 		})
 	return symbols, relationships
 
@@ -71,7 +75,9 @@ def _write_file(tx: Any, repository: str, path: str, symbols: list[dict[str, Any
 		    symbol.language = item.language, symbol.source = item.source,
 		    symbol.evidence = item.evidence, symbol.line = item.line,
 		    symbol.column = item.column, symbol.end_line = item.end_line,
-		    symbol.end_column = item.end_column
+		    symbol.end_column = item.end_column,
+		    symbol.symbol_summary = item.symbol_summary,
+		    symbol.symbol_summary_embedding = item.symbol_summary_embedding
 		MERGE (file)-[:DEFINES]->(symbol)
 		""",
 		repository=repository,
@@ -109,7 +115,10 @@ def _write_file(tx: Any, repository: str, path: str, symbols: list[dict[str, Any
 		}
 		MERGE (file)-[edge:CODE_RELATION {kind: item.kind, line: item.line, column: item.column, evidence: item.evidence}]->(target)
 		SET edge.source_index = item.source_index,
-		    edge.end_line = item.end_line, edge.end_column = item.end_column
+		    edge.end_line = item.end_line, edge.end_column = item.end_column,
+		    edge.summary = item.relationship_summary,
+		    edge.relationship_summary = item.relationship_summary,
+		    edge.relationship_summary_embedding = item.relationship_summary_embedding
 		FOREACH (_ IN CASE WHEN source IS NULL THEN [] ELSE [1] END | MERGE (source)-[:CODE_RELATION {kind: item.kind, line: item.line, column: item.column, evidence: item.evidence}]->(target))
 		""",
 		repository=repository,

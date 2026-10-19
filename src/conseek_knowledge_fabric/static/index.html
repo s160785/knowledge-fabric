@@ -152,12 +152,21 @@
           headers:{'content-type':'application/json'},
           body:JSON.stringify({question, ...config})
         });
-        const payload=await response.json();
+        
+        let payload;
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          payload = await response.json();
+        } else {
+          const text = await response.text();
+          payload = { detail: text };
+        }
+        
         typingDiv.remove();
         if(!response.ok) throw new Error(payload.detail||'Chat request failed');
         addMessage('assistant', payload.answer, payload.evidence);
       }catch(error){
-        typingDiv.remove();
+        if (typingDiv.parentNode) typingDiv.remove();
         addMessage('assistant', 'Error: '+error.message);
       }finally{
         chatSend.disabled=false;

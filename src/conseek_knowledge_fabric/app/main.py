@@ -8,11 +8,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from conseek_knowledge_fabric.app.schemas import BuildRequest, BAChatRequest, BAChatResponse
-from conseek_knowledge_fabric.ba_agent import RepoBAAgent
+
+from conseek_knowledge_fabric.ba_agent import RepoBAChatbot
 from conseek_knowledge_fabric.utils.browser_views import VIEW_QUERIES, browser_view_url
 from conseek_knowledge_fabric.utils.graph_pipeline import build_repository_graph
 from conseek_knowledge_fabric.utils.logging import get_logger, log_call
 
+import warnings
+
+# Ignore all warnings
+warnings.filterwarnings("ignore")
 
 STATIC_DIR = Path(__file__).resolve().parents[1] / "static"
 app = FastAPI(title="Code Knowledge Graph", docs_url="/api/docs", redoc_url=None)
@@ -45,34 +50,49 @@ def build_graph(request: BuildRequest) -> dict[str, object]:
 				for view in VIEW_QUERIES
 			},
 		}
-	except (OSError, RuntimeError, ValueError, TimeoutError) as error:
+	except Exception as error:
 		logger.error("Graph build request failed exception_type=%s", type(error).__name__)
 		raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+
 
 
 @app.post("/api/ba-chat", response_model=BAChatResponse)
 @log_call(logger)
 def ba_chat(request: BAChatRequest) -> BAChatResponse:
-	try:
-		logger.info("BA agent chat request received")
-		agent = RepoBAAgent(
-			uri=request.neo4j_uri,
-			username=request.neo4j_username,
-			password=request.neo4j_password.get_secret_value(),
-			database=request.neo4j_database,
-		)
-		try:
-			response = agent.ask(request.question)
-			return BAChatResponse(
-				question=response["question"],
-				answer=response["answer"],
-				evidence=response["evidence"],
-			)
-		finally:
-			agent.close()
-	except (OSError, RuntimeError, ValueError, TimeoutError) as error:
-		logger.error("BA agent chat request failed exception_type=%s", type(error).__name__)
-		raise HTTPException(status_code=400, detail=str(error)) from error
+    try:
+        logger.info("BA chatbot request received")
+
+        chatbot = RepoBAChatbot(
+            uri=request.neo4j_uri,
+            username=request.neo4j_username,
+            password=request.neo4j_password.get_secret_value(),
+            database=request.neo4j_database,
+        )
+
+        try:
+            response = chatbot.ask(request.question)
+
+            return BAChatResponse(
+                question=response["question"],
+                answer=response["answer"],
+                evidence=response.get("evidence", []),
+            )
+        finally:
+            chatbot.close()
+
+    except Exception as error:
+        logger.error(
+            "BA chatbot request failed exception_type=%s",
+            type(error).__name__,
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unable to process the BA chatbot request: {str(error)}",
+        ) from error
+
+
 
 
 def main() -> None:

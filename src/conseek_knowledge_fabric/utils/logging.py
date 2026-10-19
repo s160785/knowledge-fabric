@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
 import os
 import threading
@@ -61,6 +62,19 @@ def log_call(
 ) -> Callable[[Callable[P, R]], Callable[P, R]]:
 	"""Log call boundaries and exception types without arguments or values."""
 	def decorate(function: Callable[P, R]) -> Callable[P, R]:
+		if inspect.iscoroutinefunction(function):
+			@functools.wraps(function)
+			async def async_wrapped(*args: Any, **kwargs: Any) -> Any:
+				logger.log(level, "START", extra={"function_name": function.__name__})
+				try:
+					result = await function(*args, **kwargs)
+				except Exception as error:
+					logger.error("FAILED exception_type=%s", type(error).__name__, extra={"function_name": function.__name__})
+					raise
+				logger.log(level, "END", extra={"function_name": function.__name__})
+				return result
+			return async_wrapped  # type: ignore
+
 		@functools.wraps(function)
 		def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
 			logger.log(level, "START", extra={"function_name": function.__name__})

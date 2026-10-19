@@ -20,7 +20,10 @@ dependencies = [
 	"neo4j>=5.20",
 	"fastapi>=0.115",
 	"uvicorn>=0.30",
-	"graphifyy"
+	"graphifyy",
+	"requests",
+	"litellm",
+	"redis>=5.0"
 ]
 
 [project.optional-dependencies]
