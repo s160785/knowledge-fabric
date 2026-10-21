@@ -20,12 +20,16 @@ logger = get_logger(__name__)
 class RedisMemory:
     """Manages conversation history, query embeddings, and QA cache in Redis with in-memory fallback."""
 
+    _shared_history: dict[str, list[dict[str, str]]] = {}
+    _shared_embeddings: dict[str, list[float]] = {}
+    _shared_qa: dict[str, dict[str, Any]] = {}
+
     def __init__(self, redis_url: str | None = None, ttl: int = 86400) -> None:
         self.ttl = ttl
         self.redis_client = None
-        self._local_history: dict[str, list[dict[str, str]]] = {}
-        self._local_embeddings: dict[str, list[float]] = {}
-        self._local_qa: dict[str, dict[str, Any]] = {}
+        self._local_history = self._shared_history
+        self._local_embeddings = self._shared_embeddings
+        self._local_qa = self._shared_qa
 
         url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379/0")
         if redis is not None and url:

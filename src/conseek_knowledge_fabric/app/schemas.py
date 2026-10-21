@@ -38,9 +38,10 @@ class BuildRequest(BaseModel):
 
 class BAChatRequest(BaseModel):
 	question: str = Field(min_length=1, max_length=2048)
+	session_id: str = Field(default="default", min_length=1, max_length=128)
 	neo4j_uri: str = Field(default="bolt://localhost:7687", min_length=1, max_length=512)
 	neo4j_username: str = Field(default="neo4j", min_length=1, max_length=256)
-	neo4j_password: SecretStr
+	neo4j_password: SecretStr | None = Field(default=None)
 	neo4j_database: str | None = Field(default=None, max_length=128)
 
 	@field_validator("neo4j_uri")
@@ -58,6 +59,7 @@ class BAChatRequest(BaseModel):
 
 
 class BAChatResponse(BaseModel):
+	session_id: str = "default"
 	question: str
 	answer: str
 	evidence: list[dict] = Field(default_factory=list)

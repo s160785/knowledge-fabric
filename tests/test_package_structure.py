@@ -476,6 +476,7 @@ class PackageStructureTests(unittest.TestCase):
     def test_web_home_and_invalid_browser_url(self):
         client = TestClient(app)
         home = client.get("/")
+        ba_page = client.get("/ba-chat")
         invalid = client.post("/api/build", json={
             "repository": "/repo",
             "neo4j_password": "secret-value",
@@ -484,5 +485,8 @@ class PackageStructureTests(unittest.TestCase):
 
         self.assertEqual(home.status_code, 200)
         self.assertIn("Build a navigable code graph", home.text)
+        self.assertIn('href="/ba-chat"', home.text)
+        self.assertEqual(ba_page.status_code, 200)
+        self.assertIn("Sessions", ba_page.text)
         self.assertEqual(invalid.status_code, 422)
         self.assertNotIn("secret-value", invalid.text)

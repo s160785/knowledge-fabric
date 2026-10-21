@@ -6,8 +6,20 @@ import re
 from typing import Any, Mapping
 import hashlib
 from functools import lru_cache
-import ollama
 import os
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Configure LiteLLM before importing
+os.environ["LITELLM_TELEMETRY"] = "False"
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+
+import litellm
+from litellm import ModelResponse
 from graphify.detect import detect
 from graphify.extract import collect_files, extract
 
@@ -16,6 +28,9 @@ from conseek_knowledge_fabric.utils.logging import get_logger, log_call
 
 
 logger = get_logger(__name__)
+
+# Suppress verbose litellm logs
+litellm.suppress_debug_info = True
 
 
 REPO_PATH = Path(
@@ -50,8 +65,6 @@ SYSTEM_PROMPT = """
     7. Return only the requested summary, without markdown or preamble.
     """
 
-
-client = ollama.AsyncClient(host=os.getenv("OLLAMA_URL", "http://localhost:11434"))
 
 def _async_lru(func):
     cache = {}
@@ -115,6 +128,34 @@ def _source_context(
     return "\n".join(parts)[:limit]
 
 
+def _normalize_model_name(model: str, default_provider: str = "gemini") -> str:
+    """Normalize model string to ensure LiteLLM provider prefix is present."""
+    model = model.strip()
+    if "/" in model:
+        return model
+    if model.startswith("gemini"):
+        return f"gemini/{model}"
+    if model.startswith(("gpt-", "o1", "o3", "text-embedding-")):
+        return f"openai/{model}"
+    if model.startswith("claude-"):
+        return f"anthropic/{model}"
+    return f"{default_provider}/{model}"
+
+
+def _model_call_kwargs(model: str) -> dict[str, Any]:
+    """Supply provider-specific arguments such as api_base or api_key."""
+    kwargs: dict[str, Any] = {}
+    if model.startswith("ollama/"):
+        ollama_url = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST")
+        if ollama_url:
+            kwargs["api_base"] = ollama_url
+    elif model.startswith("gemini/") or "gemini" in model:
+        gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if gemini_api_key:
+            kwargs["api_key"] = gemini_api_key
+    return kwargs
+
+
 @_async_lru
 async def _generate_summary(
     task: str,
@@ -122,47 +163,80 @@ async def _generate_summary(
     fallback: str,
     max_tokens: int = 120,
 ) -> str:
-    """Generate a concise summary with local Ollama."""
+    """Generate a concise summary with Gemini as primary and Ollama as fallback."""
     if not context.strip():
         return fallback
 
-    try:
-        response = await client.chat(
-            model=os.getenv("SUMMARY_GEN_OLLAMA_MODEL", "gemma3:1b"),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f"Task: {task}\n\n"
-                        f"Evidence:\n{context}\n\n"
-                        "Write one concise, evidence-grounded summary."
-                    ),
-                },
-            ],
-            options={
-                "temperature": 0,
-                "num_predict": max_tokens,
-            },
-            stream=False,
-        )
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": (
+                f"Task: {task}\n\n"
+                f"Evidence:\n{context}\n\n"
+                "Write one concise, evidence-grounded summary."
+            ),
+        },
+    ]
 
-        summary = _clean(response.message.content)
+    primary_model = _normalize_model_name(
+        os.getenv("PRIMARY_LLM_MODEL")
+        or os.getenv("GEMINI_MODEL")
+        or os.getenv("SUMMARY_GEN_MODEL")
+        or "gemini/gemini-3.5-flash",
+        default_provider="gemini",
+    )
+    fallback_model = _normalize_model_name(
+        os.getenv("FALLBACK_LLM_MODEL")
+        or os.getenv("OLLAMA_MODEL")
+        or os.getenv("SUMMARY_GEN_FALLBACK_MODEL")
+        or os.getenv("SUMMARY_GEN_OLLAMA_MODEL")
+        or "ollama/gemma3:1b",
+        default_provider="ollama",
+    )
 
-        if not summary:
-            return fallback
+    models_to_try = [primary_model]
+    if fallback_model != primary_model:
+        models_to_try.append(fallback_model)
 
-        # Avoid storing excessively long model output.
-        return summary[:MAX_SUMMARY_CHARS].rstrip()
+    for i, model in enumerate(models_to_try):
+        kwargs = _model_call_kwargs(model)
+        try:
+            response = await litellm.acompletion(
+                model=model,
+                messages=messages,
+                temperature=0,
+                max_tokens=max_tokens,
+                **kwargs,
+            )
 
-    except Exception as error:
-        # Keep graph construction operational if Ollama is unavailable.
-        logger.warning(
-            "Summary generation failed; using fallback model=%s exception_type=%s",
-            os.getenv("SUMMARY_GEN_OLLAMA_MODEL", "gemma3:1b"),
-            type(error).__name__,
-        )
-        return fallback
+            content = ""
+            if isinstance(response, ModelResponse) and response.choices:
+                choice = response.choices[0]
+                if hasattr(choice, "message"):
+                    content = choice.message.content or ""
+
+            summary = _clean(content)
+            if summary:
+                return summary[:MAX_SUMMARY_CHARS].rstrip()
+
+        except Exception as error:
+            is_primary = (i == 0 and len(models_to_try) > 1)
+            if is_primary:
+                logger.warning(
+                    "Primary LLM (%s) failed: %s; falling back to %s",
+                    model,
+                    type(error).__name__,
+                    models_to_try[1],
+                )
+            else:
+                logger.warning(
+                    "LLM (%s) failed: %s; using template fallback",
+                    model,
+                    type(error).__name__,
+                )
+
+    return fallback
     
 def _determine_symbol_type(node: dict) -> str:
     is_callable = node.get("_callable", False)
@@ -310,20 +384,63 @@ async def summarize_relationship(
 @log_call(logger)
 @_async_lru
 async def embeddings_generate(text: str) -> list[float]:
-    """Generate embeddings for a given text using Ollama."""
-    try:
-        response = await client.embeddings(
-            model=os.getenv("OLLAMA_EMBED_MODEL", os.getenv("EMBEDDINGS_MODEL_NAME", "nomic-embed-text:latest")),
-            prompt=text,
-        )
-        return list(response.embedding)
-    except Exception as error:
-        logger.warning(
-            "Embedding generation failed; returning empty vector model=%s exception_type=%s",
-            os.getenv("OLLAMA_EMBED_MODEL", os.getenv("EMBEDDINGS_MODEL_NAME", "nomic-embed-text:latest")),
-            type(error).__name__,
-        )
+    """Generate embeddings with Gemini as primary and Ollama as fallback."""
+    if not text.strip():
         return []
+
+    primary_model = _normalize_model_name(
+        os.getenv("PRIMARY_EMBEDDING_MODEL")
+        or os.getenv("GEMINI_EMBEDDING_MODEL")
+        or os.getenv("EMBEDDINGS_MODEL")
+        or "gemini/text-embedding-004",
+        default_provider="gemini",
+    )
+    fallback_model = _normalize_model_name(
+        os.getenv("FALLBACK_EMBEDDING_MODEL")
+        or os.getenv("OLLAMA_EMBED_MODEL")
+        or os.getenv("EMBEDDINGS_MODEL_NAME")
+        or "ollama/nomic-embed-text:latest",
+        default_provider="ollama",
+    )
+
+    models_to_try = [primary_model]
+    if fallback_model != primary_model:
+        models_to_try.append(fallback_model)
+
+    for i, model in enumerate(models_to_try):
+        kwargs = _model_call_kwargs(model)
+        try:
+            response = await litellm.aembedding(
+                model=model,
+                input=[text],
+                **kwargs,
+            )
+            data = getattr(response, "data", [])
+            if data and isinstance(data, list):
+                first_item = data[0]
+                if isinstance(first_item, dict):
+                    vec = list(first_item.get("embedding", []))
+                else:
+                    vec = list(getattr(first_item, "embedding", []))
+                if vec:
+                    return vec
+        except Exception as error:
+            is_primary = (i == 0 and len(models_to_try) > 1)
+            if is_primary:
+                logger.warning(
+                    "Primary embedding (%s) failed: %s; falling back to %s",
+                    model,
+                    type(error).__name__,
+                    models_to_try[1],
+                )
+            else:
+                logger.warning(
+                    "Embedding generation (%s) failed: %s; returning empty vector",
+                    model,
+                    type(error).__name__,
+                )
+
+    return []
 
 async def enrich_ast_graph(graph_data):
     """Attach summary fields to graph nodes and edges so AST and graph exports are self-describing."""
@@ -430,7 +547,7 @@ def extract_repository(repository: str | Path, max_file_bytes: int = 1_000_000) 
                 kind=_determine_symbol_type(node),
                 language=(Path(target_path).suffix or ".txt").lstrip("."),
                 location=_location_from_metadata(target_path, location),
-                evidence=node.get("docstring") or node.get("summary") or json.dumps(node, ensure_ascii=False)[:500],
+                evidence=node.get("docstring") or node.get("summary") or node.get("symbol_summary") or json.dumps(node, ensure_ascii=False)[:500],
                 symbol_summary=node.get("symbol_summary"),
                 symbol_summary_embedding=node.get("symbol_summary_embedding"),
             )
@@ -461,7 +578,7 @@ def extract_repository(repository: str | Path, max_file_bytes: int = 1_000_000) 
 
     # save the enriched graph to a JSON file for inspection
     OUTPUT_FILE.write_text(
-        json.dumps(graph_data, indent=2, ensure_ascii=False),
+        json.dumps(graph.to_dict(), indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
 

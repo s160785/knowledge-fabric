@@ -5,7 +5,20 @@ import json
 import os
 import re
 from typing import Any
+import warnings
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+# Configure LiteLLM settings prior to importing
+os.environ["LITELLM_TELEMETRY"] = "False"
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
+
+import litellm
+from litellm import ModelResponse
 import requests
 from neo4j import GraphDatabase, Query
 from neo4j.warnings import Neo4jWarning
@@ -13,13 +26,42 @@ from neo4j.warnings import Neo4jWarning
 from conseek_knowledge_fabric.utils.logging import get_logger, log_call
 from conseek_knowledge_fabric.utils.redis import RedisMemory
 
-import warnings
-
 # Ignore all warnings including Neo4j DBMS notification warnings
 warnings.filterwarnings("ignore")
 warnings.filterwarnings("ignore", category=Neo4jWarning)
 
+# Suppress verbose litellm debug logs
+litellm.suppress_debug_info = True
+
 logger = get_logger(__name__)
+
+
+def _normalize_model_name(model: str, default_provider: str = "gemini") -> str:
+    """Normalize model string to ensure LiteLLM provider prefix is present."""
+    model = model.strip().strip('"').strip("'")
+    if "/" in model:
+        return model
+    if model.startswith("gemini"):
+        return f"gemini/{model}"
+    if model.startswith(("gpt-", "o1", "o3", "text-embedding-")):
+        return f"openai/{model}"
+    if model.startswith("claude-"):
+        return f"anthropic/{model}"
+    return f"{default_provider}/{model}"
+
+
+def _model_call_kwargs(model: str) -> dict[str, Any]:
+    """Supply provider-specific arguments such as api_base or api_key."""
+    kwargs: dict[str, Any] = {}
+    if model.startswith("ollama/"):
+        ollama_url = os.getenv("OLLAMA_URL") or os.getenv("OLLAMA_BASE_URL") or os.getenv("OLLAMA_HOST")
+        if ollama_url:
+            kwargs["api_base"] = ollama_url
+    elif model.startswith("gemini/") or "gemini" in model:
+        gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if gemini_api_key:
+            kwargs["api_key"] = gemini_api_key
+    return kwargs
 
 
 class RepoBAChatbot:
@@ -34,6 +76,7 @@ class RepoBAChatbot:
         redis_url: str | None = None,
         ollama_url: str | None = None,
         model: str | None = None,
+        fallback_model: str | None = None,
         embedding_model: str | None = None,
     ) -> None:
         self.uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -48,15 +91,39 @@ class RepoBAChatbot:
         )
 
         self.ollama_url = (ollama_url or os.getenv("OLLAMA_URL", "http://localhost:11434")).rstrip("/")
-        self.model = model or os.getenv("CONTEXT_GEN_OLLAMA_MODEL", "gemma3:4b")
-        self.embedding_model = embedding_model or os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text:latest")
+
+        raw_primary = (
+            model
+            or os.getenv("CONTEXT_GEN_MODEL")
+            or os.getenv("PRIMARY_LLM_MODEL")
+            or os.getenv("CONTEXT_GEN_OLLAMA_MODEL")
+            or "gemini/gemini-3.5-flash"
+        )
+        self.model = _normalize_model_name(raw_primary, default_provider="gemini")
+
+        raw_fallback = (
+            fallback_model
+            or os.getenv("CONTEXT_GEN_FALLBACK_MODEL")
+            or os.getenv("FALLBACK_LLM_MODEL")
+            or os.getenv("CONTEXT_GEN_OLLAMA_MODEL")
+            or "gemma3:4b"
+        )
+        self.fallback_model = _normalize_model_name(raw_fallback, default_provider="ollama")
+
+        self.embedding_model = (
+            embedding_model
+            or os.getenv("PRIMARY_EMBEDDING_MODEL")
+            or os.getenv("OLLAMA_EMBED_MODEL")
+            or "nomic-embed-text:latest"
+        )
         self.max_history = 12
 
         logger.info(
-            "Initializing RepoBAChatbot (neo4j_uri=%s, database=%s, model=%s, embedding_model=%s)",
+            "Initializing RepoBAChatbot (neo4j_uri=%s, database=%s, primary_model=%s, fallback_model=%s, embedding_model=%s)",
             self.uri,
             self.database or "default",
             self.model,
+            self.fallback_model,
             self.embedding_model,
         )
 
@@ -112,17 +179,37 @@ class RepoBAChatbot:
 
     @log_call(logger)
     def _get_embedding(self, text: str) -> list[float] | None:
-        """Generate text embedding with Ollama, using Redis cache if available."""
+        """Generate text embedding using LiteLLM/Ollama, with Redis cache if available."""
         logger.info("Generating embedding for text: %r", text[:60] + ("..." if len(text) > 60 else ""))
         cached = self.memory.get_embedding(text)
         if cached:
             logger.info("Embedding cache HIT in Redis/memory (dimensions=%d)", len(cached))
             return cached
 
-        logger.info("Embedding cache MISS; calling Ollama model=%s", self.embedding_model)
+        logger.info("Embedding cache MISS; trying LiteLLM/Ollama for model=%s", self.embedding_model)
+        embed_model = _normalize_model_name(self.embedding_model, default_provider="ollama")
+        kwargs = _model_call_kwargs(embed_model)
+        try:
+            resp = litellm.embedding(
+                model=embed_model,
+                input=[text],
+                **kwargs,
+            )
+            data = getattr(resp, "data", [])
+            if data and isinstance(data, list):
+                first_item = data[0]
+                vec = first_item.get("embedding", []) if isinstance(first_item, dict) else getattr(first_item, "embedding", [])
+                if vec:
+                    logger.info("Generated embedding successfully from LiteLLM model=%s (dimensions=%d)", embed_model, len(vec))
+                    self.memory.set_embedding(text, list(vec))
+                    return list(vec)
+        except Exception as exc:
+            logger.debug("LiteLLM embedding failed (%s); trying direct Ollama endpoint", exc)
+
+        raw_embed_name = self.embedding_model.replace("ollama/", "")
         for endpoint, payload in [
-            ("/api/embeddings", {"model": self.embedding_model, "prompt": text}),
-            ("/api/embed", {"model": self.embedding_model, "input": text}),
+            ("/api/embeddings", {"model": raw_embed_name, "prompt": text}),
+            ("/api/embed", {"model": raw_embed_name, "input": text}),
         ]:
             try:
                 resp = requests.post(f"{self.ollama_url}{endpoint}", json=payload, timeout=30)
@@ -139,7 +226,7 @@ class RepoBAChatbot:
                 logger.debug("Ollama embedding endpoint %s failed: %s", endpoint, exc)
                 continue
 
-        logger.warning("Failed to generate embedding from Ollama for text: %r", text[:60])
+        logger.warning("Failed to generate embedding for text: %r", text[:60])
         return None
 
     @log_call(logger)
@@ -149,33 +236,79 @@ class RepoBAChatbot:
         temperature: float = 0.3,
     ) -> str:
         logger.info(
-            "Calling Ollama chat API (url=%s, model=%s, messages=%d, temperature=%.2f)",
-            self.ollama_url,
+            "Calling LLM chat completion (primary=%s, fallback=%s, messages=%d, temperature=%.2f)",
             self.model,
+            self.fallback_model,
             len(messages),
             temperature,
         )
-        response = requests.post(
-            f"{self.ollama_url}/api/chat",
-            json={
-                "model": self.model,
-                "messages": messages,
-                "stream": False,
-                "options": {"temperature": temperature},
-            },
-            timeout=120,
-        )
-        if not response.ok:
-            try:
-                err_detail = response.json().get("error")
-            except Exception:
-                err_detail = response.text
-            logger.error("Ollama chat API returned error status=%d: %s", response.status_code, err_detail)
-            raise RuntimeError(f"Ollama error ({response.status_code}): {err_detail}")
+        models_to_try = [self.model]
+        if self.fallback_model and self.fallback_model != self.model:
+            models_to_try.append(self.fallback_model)
 
-        content = response.json()["message"]["content"].strip()
-        logger.info("Received Ollama chat response (length=%d characters)", len(content))
-        return content
+        last_error: Exception | None = None
+        for i, model_name in enumerate(models_to_try):
+            kwargs = _model_call_kwargs(model_name)
+            try:
+                logger.info("Calling LiteLLM completion with model=%s", model_name)
+                response = litellm.completion(
+                    model=model_name,
+                    messages=messages,
+                    temperature=temperature,
+                    **kwargs,
+                )
+                content = ""
+                if isinstance(response, ModelResponse) and response.choices:
+                    choice = response.choices[0]
+                    if hasattr(choice, "message"):
+                        content = choice.message.content or ""
+                else:
+                    choices = getattr(response, "choices", None)
+                    if choices:
+                        msg = getattr(choices[0], "message", None)
+                        content = getattr(msg, "content", "") or ""
+
+                content = content.strip()
+                if content:
+                    logger.info("Received LLM response from %s (length=%d characters)", model_name, len(content))
+                    return content
+            except Exception as exc:
+                last_error = exc
+                is_primary = (i == 0 and len(models_to_try) > 1)
+                if is_primary:
+                    logger.warning(
+                        "Primary LLM (%s) failed: %s; falling back to %s",
+                        model_name,
+                        exc,
+                        models_to_try[1],
+                    )
+                else:
+                    logger.warning("LLM (%s) failed: %s", model_name, exc)
+
+        # Direct Ollama chat safety net
+        try:
+            logger.info("Attempting direct Ollama chat fallback via %s/api/chat", self.ollama_url)
+            ollama_model = self.fallback_model.replace("ollama/", "")
+            resp = requests.post(
+                f"{self.ollama_url}/api/chat",
+                json={
+                    "model": ollama_model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {"temperature": temperature},
+                },
+                timeout=120,
+            )
+            if resp.ok:
+                content = resp.json()["message"]["content"].strip()
+                logger.info("Direct Ollama fallback succeeded (length=%d characters)", len(content))
+                return content
+        except Exception as ollama_exc:
+            logger.warning("Direct Ollama chat fallback failed: %s", ollama_exc)
+
+        if last_error:
+            raise last_error
+        raise RuntimeError("All LLM providers failed to generate a response.")
 
     # ---------------------------------------------------------
     # Conversation understanding & intent
@@ -639,7 +772,7 @@ Persona & Communication Guidelines:
 3. Translate Code into Business Value:
    - Describe WHAT the system does, WHO it helps, and WHAT business workflows it performs.
    - For example, instead of saying "Symbol `auth.login()` has a call relationship to `jwt.verify()`", say "The application includes a secure sign-in process that verifies user identity before granting access."
-   - If asked about "entry points", explain them in business terms as the primary starting doors or launchpads of the application (e.g. web portal, background processing service, or command line).
+   - If asked about "entry points", explicitly refer to them as the primary entry points (starting doors or launchpads) of the application (e.g. web portal, background processing service, or command line).
 4. Casual Chat & Greetings: If the user says 'hi', 'hello', 'who are you', or makes small talk, respond warmly and naturally as their BA guide, explaining how you can help them understand the application.
 5. Factual Grounding: Base all functional claims on the provided Neo4j evidence. Do not invent imaginary business features.
 6. Formatting: Use clean, readable paragraphs or bullet points. Avoid raw JSON, database query syntax, or code blocks.
@@ -734,6 +867,8 @@ def main() -> None:
     parser.add_argument("--password", default=None, help="Neo4j password")
     parser.add_argument("--database", default=None, help="Neo4j database")
     parser.add_argument("--redis-url", default=None, help="Redis URL")
+    parser.add_argument("--model", default=None, help="Primary LLM model (e.g. gemini/gemini-3.5-flash)")
+    parser.add_argument("--fallback-model", default=None, help="Fallback LLM model (e.g. ollama/gemma3:4b)")
     args = parser.parse_args()
 
     bot = RepoBAChatbot(
@@ -742,6 +877,8 @@ def main() -> None:
         password=args.password,
         database=args.database,
         redis_url=args.redis_url,
+        model=args.model,
+        fallback_model=args.fallback_model,
     )
 
     if args.question:

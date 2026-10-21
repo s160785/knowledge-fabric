@@ -55,8 +55,8 @@ def _git_environment(source: str, env_file: str | Path | None) -> dict[str, str]
     token = None
     username = None
     if host == "github.com":
-        token = credentials.get("GITHUB_TOKEN") or credentials.get("GIT_TOKEN")
-        username = credentials.get("GIT_USERNAME") or "x-access-token"
+        token = credentials.get("GITHUB_TOKEN")
+        username = credentials.get("GITHUB_USERNAME") or "x-access-token"
     elif host == "gitlab.com" or host.endswith(".gitlab.com"):
         token = credentials.get("GITLAB_TOKEN")
         username = "oauth2"
