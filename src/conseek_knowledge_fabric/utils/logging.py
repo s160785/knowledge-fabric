@@ -52,7 +52,7 @@ def get_logger(name: str) -> logging.Logger:
 		))
 		logger.addHandler(handler)
 		logger.propagate = False
-	logger.setLevel(os.getenv("CONSEEK_LOG_LEVEL", "INFO").upper())
+	logger.setLevel(os.getenv("CODEFABRIC_LOG_LEVEL", "INFO").upper())
 	return logger
 
 

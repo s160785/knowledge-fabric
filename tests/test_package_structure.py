@@ -490,3 +490,29 @@ class PackageStructureTests(unittest.TestCase):
         self.assertIn("Sessions", ba_page.text)
         self.assertEqual(invalid.status_code, 422)
         self.assertNotIn("secret-value", invalid.text)
+
+    def test_compare_and_update_graph_only_persists_changes(self):
+        from conseek_knowledge_fabric.neo4j_store import compare_graphs, update_graph
+
+        loc = SourceLocation("app.py", 1, 0, 2, 0)
+        s1 = Symbol("s1", "greet", "function", "py", loc, "def greet")
+        s2 = Symbol("s2", "farewell", "function", "py", loc, "def farewell")
+        existing = KnowledgeGraph("/repo", ["app.py"], [s1], []).to_dict()
+        updated = KnowledgeGraph("/repo", ["app.py"], [s1, s2], [])
+
+        delta = compare_graphs(existing, updated)
+        self.assertEqual([s.id for s in delta.symbols], ["s2"])
+
+        with patch("conseek_knowledge_fabric.neo4j_store.neo4j_to_json", return_value=existing), patch(
+            "conseek_knowledge_fabric.neo4j_store.store_graph", return_value={"files": 1, "symbols": 1, "relationships": 0}
+        ) as store:
+            counts = update_graph(updated, "bolt://localhost:7687", "neo4j", "secret")
+            self.assertEqual(counts, {"files": 1, "symbols": 1, "relationships": 0})
+            self.assertEqual([s.id for s in store.call_args.args[0].symbols], ["s2"])
+
+        with patch("conseek_knowledge_fabric.neo4j_store.neo4j_to_json", return_value=updated.to_dict()), patch(
+            "conseek_knowledge_fabric.neo4j_store.store_graph"
+        ) as store_noop:
+            noop_counts = update_graph(updated, "bolt://localhost:7687", "neo4j", "secret")
+            self.assertEqual(noop_counts, {"files": 0, "symbols": 0, "relationships": 0})
+            store_noop.assert_not_called()

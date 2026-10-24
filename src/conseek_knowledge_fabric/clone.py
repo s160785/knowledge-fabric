@@ -148,7 +148,7 @@ def check_repository_access(
 @log_call(logger)
 def clone_repository(
     source: str,
-    clone_root: str | Path = ".conseek/repos",
+    clone_root: str | Path = ".codefabric/repos",
     env_file: str | Path | None = None,
     branch: str | None = None,
 ) -> Path:
@@ -187,7 +187,7 @@ def clone_repository(
 @log_call(logger)
 def resolve_repository(
     source: str,
-    clone_root: str | Path = ".conseek/repos",
+    clone_root: str | Path = ".codefabric/repos",
     env_file: str | Path | None = None,
     branch: str | None = None,
 ) -> Path:

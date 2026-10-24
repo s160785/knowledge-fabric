@@ -34,7 +34,7 @@ litellm.suppress_debug_info = True
 
 
 REPO_PATH = Path(
-    ".conseek/repos/contextos-doc-translator"
+    ".codefabric/repos/contextos-doc-translator"
 ).resolve()
 
 OUTPUT_DIR = Path("graphify-out").resolve()
@@ -448,17 +448,17 @@ async def enrich_ast_graph(graph_data):
     edges = graph_data.get("edges", [])
     nodes_by_id = {node["id"]: node for node in nodes if node.get("id")}
 
-    symbol_tasks = [summarize_symbol(node) for node in nodes]
-    relationship_tasks = [summarize_relationship(edge, nodes_by_id) for edge in edges]
+    nodes_to_enrich = [n for n in nodes if not n.get("symbol_summary")]
+    edges_to_enrich = [e for e in edges if not e.get("relationship_summary")]
 
-    symbol_results = await tqdm.gather(*symbol_tasks)
-    relationship_results = await tqdm.gather(*relationship_tasks)
-    for e,(node, symbol_result) in enumerate(zip(nodes, symbol_results)):
+    symbol_results = await tqdm.gather(*[summarize_symbol(n) for n in nodes_to_enrich]) if nodes_to_enrich else []
+    for e, (node, symbol_result) in enumerate(zip(nodes_to_enrich, symbol_results)):
         logger.info("Generating %s summary for symbol id=%s name=%s", str(e + 1), node.get("id"), node.get("name"))
         node["symbol_summary"] = symbol_result
         node["symbol_summary_embedding"] = await embeddings_generate(node["symbol_summary"])
 
-    for e, (edge, relationship_result) in enumerate(zip(edges, relationship_results)):
+    relationship_results = await tqdm.gather(*[summarize_relationship(edge, nodes_by_id) for edge in edges_to_enrich]) if edges_to_enrich else []
+    for e, (edge, relationship_result) in enumerate(zip(edges_to_enrich, relationship_results)):
         logger.info("Generating %s summary for relationship id=%s", str(e + 1), edge.get("id"))
         edge["relationship_summary"] = relationship_result
         edge["relationship_summary_embedding"] = await embeddings_generate(edge["relationship_summary"])
@@ -480,9 +480,7 @@ def _location_from_metadata(path: str, location: Any) -> SourceLocation:
     return SourceLocation(path=path, line=line, column=column, end_line=end_line, end_column=end_column)
 
 
-@log_call(logger)
-def extract_repository(repository: str | Path, max_file_bytes: int = 1_000_000) -> KnowledgeGraph:
-    """Compatibility wrapper that adapts the graphify extractor to the app's graph model."""
+def _extract_raw(repository: str | Path, max_file_bytes: int = 1_000_000) -> tuple[Path, list[Path], dict[str, Any]]:
     root = Path(repository).expanduser().resolve(strict=True)
     if not root.is_dir():
         raise NotADirectoryError(root)
@@ -503,18 +501,77 @@ def extract_repository(repository: str | Path, max_file_bytes: int = 1_000_000) 
     if not code_files:
         raise RuntimeError(f"No code files detected under {root}")
 
-    filtered_files = []
-    for path in code_files:
-        if path.stat().st_size <= max_file_bytes:
-            filtered_files.append(path)
+    filtered_files = [p for p in code_files if p.stat().st_size <= max_file_bytes]
     logger.info(
         "Filtered code files included=%d skipped_oversize=%d max_file_bytes=%d",
         len(filtered_files),
         len(code_files) - len(filtered_files),
         max_file_bytes,
     )
+    return root, filtered_files, extract(filtered_files, root=root)
 
-    graph_data = asyncio.run(enrich_ast_graph(extract(filtered_files, root=root)))
+
+def _node_to_symbol(node: Mapping[str, Any], root: Path) -> Symbol:
+    node_id = str(node.get("id") or node.get("name") or "unknown")
+    source_file = node.get("source_file") or node.get("file") or "unknown"
+    target_path = source_file
+    if isinstance(source_file, str):
+        try:
+            resolved = Path(source_file)
+            if not resolved.is_absolute():
+                resolved = root / resolved
+            target_path = resolved.relative_to(root).as_posix()
+        except ValueError:
+            target_path = source_file
+    location = node.get("source_location") or node.get("location") or {}
+    return Symbol(
+        id=node_id,
+        name=get_node_name(node),
+        kind=_determine_symbol_type(dict(node)),
+        language=(Path(target_path).suffix or ".txt").lstrip("."),
+        location=_location_from_metadata(target_path, location),
+        evidence=node.get("docstring") or node.get("summary") or node.get("symbol_summary") or json.dumps(node, ensure_ascii=False)[:500],
+        symbol_summary=node.get("symbol_summary"),
+        symbol_summary_embedding=node.get("symbol_summary_embedding"),
+    )
+
+
+def _edge_to_relationship(edge: Mapping[str, Any]) -> Relationship:
+    source_id = str(edge.get("source") or "unknown")
+    target_id = str(edge.get("target") or "unknown")
+    source_path = edge.get("source_file") or "unknown"
+    relationship_summary = edge.get("relationship_summary") or edge.get("relation_summary")
+    return Relationship(
+        source=source_id,
+        target=target_id,
+        kind=edge.get("relation") or edge.get("kind") or "related_to",
+        location=_location_from_metadata(source_path, edge.get("location") or {}),
+        evidence=edge.get("evidence") or relationship_summary or "",
+        relationship_summary=relationship_summary,
+        relationship_summary_embedding=edge.get("relationship_summary_embedding"),
+    )
+
+
+def _build_knowledge_graph(root: Path, filtered_files: list[Path], graph_data: Mapping[str, Any]) -> KnowledgeGraph:
+    graph = KnowledgeGraph(
+        repository=str(root),
+        files=[path.relative_to(root).as_posix() for path in filtered_files],
+        symbols=[_node_to_symbol(node, root) for node in graph_data.get("nodes", [])],
+        relationships=[_edge_to_relationship(edge) for edge in graph_data.get("edges", [])],
+        diagnostics=[str(diag) for diag in graph_data.get("diagnostics", []) if diag],
+    )
+    OUTPUT_FILE.write_text(
+        json.dumps(graph.to_dict(), indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return graph
+
+
+@log_call(logger)
+def extract_repository(repository: str | Path, max_file_bytes: int = 1_000_000) -> KnowledgeGraph:
+    """Compatibility wrapper that adapts the graphify extractor to the app's graph model."""
+    root, filtered_files, raw_graph = _extract_raw(repository, max_file_bytes)
+    graph_data = asyncio.run(enrich_ast_graph(raw_graph))
     logger.info(
         "Graph extraction complete files=%d symbols=%d relationships=%d diagnostics=%d",
         len(filtered_files),
@@ -522,68 +579,53 @@ def extract_repository(repository: str | Path, max_file_bytes: int = 1_000_000) 
         len(graph_data.get("edges", [])),
         len(graph_data.get("diagnostics", [])),
     )
-    graph = KnowledgeGraph(repository=str(root))
+    return _build_knowledge_graph(root, filtered_files, graph_data)
 
-    for path in filtered_files:
-        graph.files.append(path.relative_to(root).as_posix())
 
-    for node in graph_data.get("nodes", []):
-        node_id = str(node.get("id") or node.get("name") or "unknown")
-        source_file = node.get("source_file") or node.get("file") or "unknown"
-        target_path = source_file
-        if isinstance(source_file, str):
-            try:
-                resolved = Path(source_file)
-                if not resolved.is_absolute():
-                    resolved = root / resolved
-                target_path = resolved.relative_to(root).as_posix()
-            except ValueError:
-                target_path = source_file
-        location = node.get("source_location") or node.get("location") or {}
-        graph.symbols.append(
-            Symbol(
-                id=node_id,
-                name=get_node_name(node),
-                kind=_determine_symbol_type(node),
-                language=(Path(target_path).suffix or ".txt").lstrip("."),
-                location=_location_from_metadata(target_path, location),
-                evidence=node.get("docstring") or node.get("summary") or node.get("symbol_summary") or json.dumps(node, ensure_ascii=False)[:500],
-                symbol_summary=node.get("symbol_summary"),
-                symbol_summary_embedding=node.get("symbol_summary_embedding"),
-            )
-        )
+@log_call(logger)
+def update_knowledge_graph(
+    repository: str | Path,
+    uri: str,
+    username: str,
+    password: str,
+    database: str | None = None,
+    max_file_bytes: int = 1_000_000,
+) -> dict[str, Any]:
+    """Export Neo4j to JSON, compare with extracted repository graph, and persist only changes."""
+    from conseek_knowledge_fabric.neo4j_store import _rel_key, _symbol_key, compare_graphs, neo4j_to_json, store_graph
 
-    for edge in graph_data.get("edges", []):
-        source_id = str(edge.get("source") or "unknown")
-        target_id = str(edge.get("target") or "unknown")
-        source_path = "unknown"
-        if edge.get("source_file"):
-            source_path = edge.get("source_file")
-        relationship_summary = edge.get("relationship_summary") or edge.get("relation_summary")
-        graph.relationships.append(
-            Relationship(
-                source=source_id,
-                target=target_id,
-                kind=edge.get("relation") or edge.get("kind") or "related_to",
-                location=_location_from_metadata(source_path, edge.get("location") or {}),
-                evidence=edge.get("evidence") or relationship_summary or "",
-                relationship_summary=relationship_summary,
-                relationship_summary_embedding=edge.get("relationship_summary_embedding")
-            )
-        )
-
-    for diag in graph_data.get("diagnostics", []):
-        if diag:
-            graph.diagnostics.append(str(diag))
-
-    # save the enriched graph to a JSON file for inspection
-    OUTPUT_FILE.write_text(
-        json.dumps(graph.to_dict(), indent=2, ensure_ascii=False),
-        encoding="utf-8",
+    root, filtered_files, raw_graph = _extract_raw(repository, max_file_bytes)
+    neo4j_json_path = OUTPUT_DIR / "neo4j_graph.json"
+    existing = neo4j_to_json(
+        uri, username, password, repository=str(root), database=database, output_path=neo4j_json_path
     )
 
+    existing_symbols = {_symbol_key(s): s for s in existing.get("symbols", [])}
+    existing_rels = {_rel_key(r): r for r in existing.get("relationships", [])}
 
-    return graph
+    for node in raw_graph.get("nodes", []):
+        match = existing_symbols.get(_symbol_key(_node_to_symbol(node, root)))
+        if match and match.get("symbol_summary"):
+            node["symbol_summary"] = match["symbol_summary"]
+            node["symbol_summary_embedding"] = match.get("symbol_summary_embedding")
+
+    for edge in raw_graph.get("edges", []):
+        match = existing_rels.get(_rel_key(_edge_to_relationship(edge)))
+        if match and match.get("relationship_summary"):
+            edge["relationship_summary"] = match["relationship_summary"]
+            edge["relationship_summary_embedding"] = match.get("relationship_summary_embedding")
+
+    un_enriched = _build_knowledge_graph(root, filtered_files, raw_graph)
+    delta_check = compare_graphs(existing, un_enriched)
+    if not delta_check.files and not delta_check.symbols and not delta_check.relationships:
+        logger.info("No changes found between Neo4j and extracted graph")
+        return {"repository": str(root), "counts": {"files": 0, "symbols": 0, "relationships": 0}, "changed": False}
+
+    graph_data = asyncio.run(enrich_ast_graph(raw_graph))
+    full_graph = _build_knowledge_graph(root, filtered_files, graph_data)
+    delta = compare_graphs(existing, full_graph)
+    counts = store_graph(delta, uri, username, password, database)
+    return {"repository": str(root), "counts": counts, "changed": True, "diagnostics": full_graph.diagnostics}
 
 
 # def main():

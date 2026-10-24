@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from conseek_knowledge_fabric.app.schemas import BuildRequest, BAChatRequest, BAChatResponse
 
 from conseek_knowledge_fabric.ba_agent import RepoBAChatbot
-# from conseek_knowledge_fabric.react_agent import RepoBAChatbot
+# from code_fabric.react_agent import RepoBAChatbot
 from conseek_knowledge_fabric.utils.browser_views import VIEW_QUERIES, browser_view_url
 from conseek_knowledge_fabric.utils.graph_pipeline import build_repository_graph
 from conseek_knowledge_fabric.utils.logging import get_logger, log_call
@@ -36,6 +36,12 @@ def home() -> FileResponse:
 @log_call(logger)
 def ba_chat_page() -> FileResponse:
 	return FileResponse(STATIC_DIR / "ba_chat.html")
+
+
+@app.get("/live-coding", include_in_schema=False)
+@log_call(logger)
+def live_coding_page() -> FileResponse:
+	return FileResponse(STATIC_DIR / "live_coding.html")
 
 
 @app.post("/api/build")
@@ -119,9 +125,9 @@ def delete_ba_chat_session(session_id: str) -> dict[str, str]:
 
 def main() -> None:
 	uvicorn.run(
-		"conseek_knowledge_fabric.app.main:app",
-		host=os.getenv("CONSEEK_HOST", "127.0.0.1"),
-		port=int(os.getenv("CONSEEK_PORT", "8000")),
+		"code_fabric.app.main:app",
+		host=os.getenv("CODEFABRIC_HOST", "127.0.0.1"),
+		port=int(os.getenv("CODEFABRIC_PORT", "8000")),
 		reload=False,
 	)
 

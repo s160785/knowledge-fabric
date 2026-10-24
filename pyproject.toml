@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "conseek-knowledge-fabric"
+name = "contextos-conseek-knowledge-fabric"
 version = "0.1.0"
 description = "Evidence-grounded code knowledge extraction and Serenity responses"
 requires-python = ">=3.11"
@@ -23,17 +23,19 @@ dependencies = [
 	"graphifyy",
 	"requests",
 	"litellm",
-	"redis>=5.0"
+	"redis>=5.0",
+	"graphifyy[mcp]",
+	"graphifyy[neo4j]"
 ]
 
 [project.optional-dependencies]
 test = ["httpx>=0.27"]
 
 [project.scripts]
-conseek-extract = "conseek_knowledge_fabric.cli:main"
-conseek-ast = "conseek_knowledge_fabric.ast_cli:main"
-conseek-web = "conseek_knowledge_fabric.app.main:main"
-conseek-ba = "conseek_knowledge_fabric.ba_agent:main"
+conseekknowledgefabric-extract = "conseek_knowledge_fabric.cli:main"
+conseekknowledgefabric-ast = "conseek_knowledge_fabric.ast_cli:main"
+conseekknowledgefabric-web = "conseek_knowledge_fabric.app.main:main"
+conseekknowledgefabric-ba = "conseek_knowledge_fabric.ba_agent:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

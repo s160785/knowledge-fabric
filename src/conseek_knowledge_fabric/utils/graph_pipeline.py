@@ -6,9 +6,9 @@ from typing import Any
 
 from dotenv import dotenv_values
 
-from conseek_knowledge_fabric.graphify_analysis import extract_repository
+from conseek_knowledge_fabric.graphify_analysis import extract_repository, update_knowledge_graph
 from conseek_knowledge_fabric.clone import resolve_repository
-from conseek_knowledge_fabric.neo4j_store import store_graph
+from conseek_knowledge_fabric.neo4j_store import store_graph, update_graph
 from conseek_knowledge_fabric.security import audit_repository
 from conseek_knowledge_fabric.utils.logging import get_logger, log_call
 
@@ -26,16 +26,17 @@ def build_repository_graph(
 	branch: str | None = None,
 ) -> dict[str, Any]:
 	logger.info("Resolving repository and selected branch")
-	env_file = Path(os.getenv("CONSEEK_ENV_FILE", ".env"))
-	repository = resolve_repository(repository_source, ".conseek/repos", env_file, branch)
+	env_file = Path(os.getenv("CODEFABRIC_ENV_FILE", ".env"))
+	repository = resolve_repository(repository_source, ".codefabric/repos", env_file, branch)
 	logger.info("Running repository audit")
 	diagnostics = audit_repository(repository)
-	logger.info("Extracting source symbols and relationships")
-	graph = extract_repository(repository)
-	logger.info("Persisting extracted graph to Neo4j")
-	counts = store_graph(graph, neo4j_uri, neo4j_username, neo4j_password, neo4j_database)
+	logger.info("Updating knowledge graph with diff against Neo4j")
+	result = update_knowledge_graph(
+		repository, neo4j_uri, neo4j_username, neo4j_password, neo4j_database
+	)
+	counts = result["counts"]
 	logger.info(
 		"Persistence complete files=%d symbols=%d relationships=%d",
 		counts["files"], counts["symbols"], counts["relationships"],
 	)
-	return {"repository": graph.repository, "counts": counts, "diagnostics": diagnostics + graph.diagnostics}
+	return {"repository": result["repository"], "counts": counts, "diagnostics": diagnostics + result.get("diagnostics", [])}

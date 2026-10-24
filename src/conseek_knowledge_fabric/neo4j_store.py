@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any
+import json
+from pathlib import Path
+from typing import Any, Mapping
 
 from neo4j import Driver
 from neo4j.exceptions import Neo4jError
 
-from conseek_knowledge_fabric.models import KnowledgeGraph
+from conseek_knowledge_fabric.models import KnowledgeGraph, Relationship, SourceLocation, Symbol
 from conseek_knowledge_fabric.utils.logging import get_logger, log_call
 
 
@@ -114,7 +116,8 @@ def _write_file(tx: Any, repository: str, path: str, symbols: list[dict[str, Any
 			RETURN target
 		}
 		MERGE (file)-[edge:CODE_RELATION {kind: item.kind, line: item.line, column: item.column, evidence: item.evidence}]->(target)
-		SET edge.source_index = item.source_index,
+		SET edge.source = item.source,
+		    edge.source_index = item.source_index,
 		    edge.end_line = item.end_line, edge.end_column = item.end_column,
 		    edge.summary = item.relationship_summary,
 		    edge.relationship_summary = item.relationship_summary,
@@ -171,3 +174,241 @@ def store_graph(
 	except Neo4jError as error:
 		logger.error("Neo4j operation failed exception_type=%s", type(error).__name__)
 		raise RuntimeError("Neo4j operation failed; check its URI, credentials, database, and permissions") from error
+
+
+def _strip_repo_prefix(value: str | None, repository: str) -> str:
+	if not value:
+		return "unknown"
+	for prefix in (f"{repository}::external::", f"{repository}::"):
+		if value.startswith(prefix):
+			return value[len(prefix):]
+	return value
+
+
+@log_call(logger)
+def neo4j_to_json(
+	uri: str,
+	username: str,
+	password: str,
+	repository: str | None = None,
+	database: str | None = None,
+	output_path: str | Path | None = None,
+) -> dict[str, Any]:
+	"""Export the existing Neo4j knowledge graph into canonical KnowledgeGraph JSON format."""
+	from neo4j import GraphDatabase
+
+	try:
+		with GraphDatabase.driver(uri, auth=(username, password)) as driver:
+			driver.verify_connectivity()
+			with driver.session(database=database) as session:
+				if not repository:
+					rec = session.run("MATCH (r:Repository) RETURN r.path AS path LIMIT 1").single()
+					repository = rec["path"] if rec else ""
+
+				files = [
+					r["path"]
+					for r in session.run(
+						"MATCH (f:File {repository: $repo}) RETURN f.path AS path ORDER BY f.path",
+						repo=repository,
+					)
+				]
+				symbols = []
+				for r in session.run(
+					"""
+					MATCH (f:File {repository: $repo})-[:DEFINES]->(s:Symbol)
+					RETURN f.path AS path, properties(s) AS props
+					""",
+					repo=repository,
+				):
+					p = r["props"]
+					symbols.append({
+						"id": _strip_repo_prefix(p.get("id"), repository),
+						"name": p.get("name", ""),
+						"kind": p.get("kind", ""),
+						"language": p.get("language", ""),
+						"location": {
+							"path": r["path"],
+							"line": int(p.get("line", 1)),
+							"column": int(p.get("column", 0)),
+							"end_line": int(p.get("end_line", 1)),
+							"end_column": int(p.get("end_column", 0)),
+						},
+						"evidence": p.get("evidence", ""),
+						"source": p.get("source", "tree-sitter"),
+						"symbol_summary": p.get("symbol_summary"),
+						"symbol_summary_embedding": p.get("symbol_summary_embedding"),
+					})
+
+				relationships = []
+				for r in session.run(
+					"""
+					MATCH (f:File {repository: $repo})-[e:CODE_RELATION]->(t)
+					OPTIONAL MATCH (f)-[:DEFINES]->(s:Symbol)-[:CODE_RELATION {
+						kind: e.kind, line: e.line, column: e.column, evidence: e.evidence
+					}]->(t)
+					RETURN f.path AS path, coalesce(e.source, s.id) AS source, t.id AS target, properties(e) AS props
+					""",
+					repo=repository,
+				):
+					p = r["props"]
+					relationships.append({
+						"source": _strip_repo_prefix(r["source"], repository),
+						"target": _strip_repo_prefix(r["target"], repository),
+						"kind": p.get("kind", "related_to"),
+						"location": {
+							"path": r["path"],
+							"line": int(p.get("line", 1)),
+							"column": int(p.get("column", 0)),
+							"end_line": int(p.get("end_line", 1)),
+							"end_column": int(p.get("end_column", 0)),
+						},
+						"evidence": p.get("evidence", ""),
+						"source_index": p.get("source_index", "tree-sitter"),
+						"relationship_summary": p.get("relationship_summary") or p.get("summary"),
+						"relationship_summary_embedding": p.get("relationship_summary_embedding"),
+					})
+
+				data = {
+					"repository": repository,
+					"files": files,
+					"symbols": symbols,
+					"relationships": relationships,
+					"diagnostics": [],
+				}
+				if output_path:
+					Path(output_path).write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+				return data
+	except Neo4jError as error:
+		logger.error("Neo4j export failed exception_type=%s", type(error).__name__)
+		raise RuntimeError("Neo4j export failed; check its URI, credentials, database, and permissions") from error
+
+
+def _symbol_key(sym: Mapping[str, Any] | Symbol) -> tuple[Any, ...]:
+	if isinstance(sym, Symbol):
+		loc = sym.location
+		return (sym.id, sym.name, sym.kind, sym.language, loc.path, loc.line, loc.column, loc.end_line, loc.end_column)
+	loc = sym.get("location") or {}
+	return (
+		sym.get("id"),
+		sym.get("name"),
+		sym.get("kind"),
+		sym.get("language"),
+		loc.get("path"),
+		int(loc.get("line", 1)),
+		int(loc.get("column", 0)),
+		int(loc.get("end_line", 1)),
+		int(loc.get("end_column", 0)),
+	)
+
+
+def _rel_key(rel: Mapping[str, Any] | Relationship) -> tuple[Any, ...]:
+	if isinstance(rel, Relationship):
+		loc = rel.location
+		return (rel.source, rel.target, rel.kind, loc.path, loc.line, loc.column, loc.end_line, loc.end_column)
+	loc = rel.get("location") or {}
+	return (
+		rel.get("source"),
+		rel.get("target"),
+		rel.get("kind"),
+		loc.get("path"),
+		int(loc.get("line", 1)),
+		int(loc.get("column", 0)),
+		int(loc.get("end_line", 1)),
+		int(loc.get("end_column", 0)),
+	)
+
+
+def _dict_to_symbol(item: Mapping[str, Any] | Symbol) -> Symbol:
+	if isinstance(item, Symbol):
+		return item
+	loc = item.get("location") or {}
+	return Symbol(
+		id=str(item["id"]),
+		name=str(item.get("name", "")),
+		kind=str(item.get("kind", "")),
+		language=str(item.get("language", "")),
+		location=SourceLocation(
+			path=str(loc.get("path", "")),
+			line=int(loc.get("line", 1)),
+			column=int(loc.get("column", 0)),
+			end_line=int(loc.get("end_line", 1)),
+			end_column=int(loc.get("end_column", 0)),
+		),
+		evidence=str(item.get("evidence", "")),
+		source=str(item.get("source", "tree-sitter")),
+		symbol_summary=item.get("symbol_summary"),
+		symbol_summary_embedding=item.get("symbol_summary_embedding"),
+	)
+
+
+def _dict_to_relationship(item: Mapping[str, Any] | Relationship) -> Relationship:
+	if isinstance(item, Relationship):
+		return item
+	loc = item.get("location") or {}
+	return Relationship(
+		source=str(item["source"]),
+		target=str(item["target"]),
+		kind=str(item.get("kind", "related_to")),
+		location=SourceLocation(
+			path=str(loc.get("path", "")),
+			line=int(loc.get("line", 1)),
+			column=int(loc.get("column", 0)),
+			end_line=int(loc.get("end_line", 1)),
+			end_column=int(loc.get("end_column", 0)),
+		),
+		evidence=str(item.get("evidence", "")),
+		source_index=str(item.get("source_index", "tree-sitter")),
+		relationship_summary=item.get("relationship_summary"),
+		relationship_summary_embedding=item.get("relationship_summary_embedding"),
+	)
+
+
+@log_call(logger)
+def compare_graphs(
+	existing_graph: Mapping[str, Any] | KnowledgeGraph,
+	new_graph: Mapping[str, Any] | KnowledgeGraph,
+) -> KnowledgeGraph:
+	"""Return a delta KnowledgeGraph containing only new or modified files, symbols, and relationships."""
+	old_dict = existing_graph.to_dict() if isinstance(existing_graph, KnowledgeGraph) else existing_graph
+	new_dict = new_graph.to_dict() if isinstance(new_graph, KnowledgeGraph) else new_graph
+
+	old_files = set(old_dict.get("files", []))
+	old_symbols = {_symbol_key(s) for s in old_dict.get("symbols", [])}
+	old_rels = {_rel_key(r) for r in old_dict.get("relationships", [])}
+
+	new_symbols = new_graph.symbols if isinstance(new_graph, KnowledgeGraph) else [_dict_to_symbol(s) for s in new_dict.get("symbols", [])]
+	new_rels = new_graph.relationships if isinstance(new_graph, KnowledgeGraph) else [_dict_to_relationship(r) for r in new_dict.get("relationships", [])]
+
+	diff_symbols = [s for s in new_symbols if _symbol_key(s) not in old_symbols]
+	diff_rels = [r for r in new_rels if _rel_key(r) not in old_rels]
+	diff_files = sorted(
+		(set(new_dict.get("files", [])) - old_files)
+		| {s.location.path for s in diff_symbols}
+		| {r.location.path for r in diff_rels}
+	)
+
+	return KnowledgeGraph(
+		repository=str(new_dict.get("repository") or old_dict.get("repository") or ""),
+		files=diff_files,
+		symbols=diff_symbols,
+		relationships=diff_rels,
+		diagnostics=list(new_dict.get("diagnostics", [])),
+	)
+
+
+@log_call(logger)
+def update_graph(
+	graph: KnowledgeGraph,
+	uri: str,
+	username: str,
+	password: str,
+	database: str | None = None,
+	export_path: str | Path | None = None,
+) -> dict[str, int]:
+	"""Export Neo4j to JSON, compare against `graph`, and persist only changed items."""
+	existing = neo4j_to_json(uri, username, password, repository=graph.repository, database=database, output_path=export_path)
+	delta = compare_graphs(existing, graph)
+	if not delta.files and not delta.symbols and not delta.relationships:
+		logger.info("No graph changes detected; skipping Neo4j write")
+		return {"files": 0, "symbols": 0, "relationships": 0}
+	return store_graph(delta, uri, username, password, database)

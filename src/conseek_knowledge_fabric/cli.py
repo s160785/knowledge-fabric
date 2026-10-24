@@ -20,7 +20,7 @@ from conseek_knowledge_fabric.views.full import build as full_view
 def main() -> None:
     parser = argparse.ArgumentParser(description="Extract evidence-grounded code knowledge.")
     parser.add_argument("repository", help="Local repository path or remote Git URL")
-    parser.add_argument("--clone-root", type=Path, default=Path(".conseek/repos"))
+    parser.add_argument("--clone-root", type=Path, default=Path(".codefabric/repos"))
     parser.add_argument("--env-file", type=Path, default=Path(".env"), help="Git credentials file for private repositories")
     parser.add_argument("--scip-index", type=Path, help="Optional SCIP index to add semantic references")
     parser.add_argument("--neo4j", action="store_true", help="Persist the extracted graph to Neo4j")
@@ -56,5 +56,5 @@ def main() -> None:
         else:
             print(output)
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
-        print(f"conseek-extract: {error}", file=sys.stderr)
+        print(f"codefabric-extract: {error}", file=sys.stderr)
         raise SystemExit(2) from error
